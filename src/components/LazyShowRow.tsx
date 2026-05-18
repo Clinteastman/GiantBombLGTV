@@ -11,6 +11,11 @@ interface Props {
   onSelect: (video: Video) => void;
   /** Optional title override, e.g. "★ Show Title" for pinned shows. */
   title?: string;
+  /** Long-press / right-click handler for the row title. */
+  onTitleMenu?: (show: Show) => void;
+  /** Custom focusKey suffix when the same show appears in multiple rows
+   * (e.g. once in Pinned and once in active_shows). */
+  focusKey?: string;
 }
 
 /**
@@ -19,7 +24,13 @@ interface Props {
  * (often 30+) would fire 30+ /api/public/videos requests at once and trip
  * Giant Bomb's rate limit.
  */
-export function LazyShowRow({ show, onSelect, title }: Props) {
+export function LazyShowRow({
+  show,
+  onSelect,
+  title,
+  onTitleMenu,
+  focusKey,
+}: Props) {
   const apiKey = loadApiKey()!;
   const client = useMemo(() => createClient(apiKey), [apiKey]);
 
@@ -48,9 +59,15 @@ export function LazyShowRow({ show, onSelect, title }: Props) {
     staleTime: 5 * 60_000,
   });
 
+  const rowFocusKey = focusKey ?? `lazy-show-${show.id}`;
+
   return (
     <div ref={wrapperRef}>
-      <Row title={title ?? show.title} focusKey={`lazy-show-${show.id}`}>
+      <Row
+        title={title ?? show.title}
+        focusKey={rowFocusKey}
+        onTitleMenu={onTitleMenu ? () => onTitleMenu(show) : undefined}
+      >
         {!shouldFetch || videos.isLoading ? (
           <RowPlaceholder count={5} />
         ) : (
@@ -59,7 +76,7 @@ export function LazyShowRow({ show, onSelect, title }: Props) {
               key={v.id}
               video={v}
               onSelect={onSelect}
-              focusKey={`show-${show.id}-video-${v.id}`}
+              focusKey={`${rowFocusKey}-video-${v.id}`}
             />
           ))
         )}

@@ -6,10 +6,22 @@ const GQL_URL = 'https://gql.twitch.tv/gql';
 const CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
 const LOGIN_REGEX = /^[a-zA-Z0-9_]{4,25}$/;
 
+// PlaybackAccessToken is the one query we can't run inline: Twitch only mints
+// the signed token in response to this persisted operation. The hash here has
+// been stable for years but does occasionally rotate; if live playback starts
+// returning null with no other changes, this is the first place to look.
+const PLAYBACK_ACCESS_TOKEN_HASH =
+  'ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9';
+
 export interface LiveStatus {
   isLive: boolean;
   title: string | null;
   previewImageUrl: string | null;
+}
+
+export interface TwitchStream {
+  hlsUrl: string;
+  title: string;
 }
 
 /**
@@ -36,6 +48,90 @@ export async function getTwitchLiveStatus(channel: string): Promise<LiveStatus |
     if (res.status !== 200) return null;
     const json = await res.json();
     return parseLiveStatusResponse(channel, json, Date.now());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract a playable HLS URL for a live Twitch channel. Returns null if the
+ * channel isn't live, if Twitch rejects the access-token request, or if any
+ * network/parse error fires. Callers should treat null as "not playable" and
+ * leave the user in the upcoming list rather than navigating into a dead
+ * playback screen.
+ */
+export async function extractTwitchHls(channel: string): Promise<TwitchStream | null> {
+  if (!LOGIN_REGEX.test(channel)) return null;
+  try {
+    const tokenRes = await fetch(GQL_URL, {
+      method: 'POST',
+      headers: {
+        'Client-ID': CLIENT_ID,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        operationName: 'PlaybackAccessToken',
+        extensions: {
+          persistedQuery: {
+            version: 1,
+            sha256Hash: PLAYBACK_ACCESS_TOKEN_HASH,
+          },
+        },
+        variables: {
+          login: channel,
+          isLive: true,
+          isVod: false,
+          vodID: '',
+          playerType: 'site',
+          platform: 'web',
+        },
+      }),
+    });
+    if (tokenRes.status !== 200) return null;
+    const tokenJson = await tokenRes.json();
+    const token = tokenJson?.data?.streamPlaybackAccessToken;
+    if (!token?.value || !token?.signature) return null;
+
+    const title = (await getStreamTitle(channel)) ?? 'Giant Bomb Live';
+
+    const params = new URLSearchParams({
+      sig: token.signature,
+      token: token.value,
+      allow_source: 'true',
+      allow_audio_only: 'true',
+      fast_bread: 'true',
+      p: String(Math.floor(Math.random() * 999_999)),
+      player_backend: 'mediaplayer',
+      playlist_include_framerate: 'true',
+      reassignments_supported: 'true',
+      supported_codecs: 'avc1',
+      cdm: 'wv',
+    });
+    const hlsUrl = `https://usher.ttvnw.net/api/channel/hls/${channel}.m3u8?${params.toString()}`;
+    return { hlsUrl, title };
+  } catch {
+    return null;
+  }
+}
+
+async function getStreamTitle(channel: string): Promise<string | null> {
+  try {
+    const res = await fetch(GQL_URL, {
+      method: 'POST',
+      headers: {
+        'Client-ID': CLIENT_ID,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        query: `query { user(login: "${channel}") { stream { title } } }`,
+      }),
+    });
+    if (res.status !== 200) return null;
+    const json = await res.json();
+    const t = json?.data?.user?.stream?.title;
+    return typeof t === 'string' && t.trim() ? t : null;
   } catch {
     return null;
   }

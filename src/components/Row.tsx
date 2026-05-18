@@ -5,9 +5,13 @@ interface Props {
   title: string;
   focusKey: string;
   children: ReactNode;
+  /** When set, the title becomes a focusable element that opens this menu on
+   * Enter, click, or right-click. Used by Browse to surface section actions
+   * (move up, move down, hide) or per-show actions (pin, unpin, move). */
+  onTitleMenu?: () => void;
 }
 
-export function Row({ title, focusKey, children }: Props) {
+export function Row({ title, focusKey, onTitleMenu, children }: Props) {
   const { ref, focusKey: ctx, hasFocusedChild } = useFocusable({
     focusKey,
     saveLastFocusedChild: true,
@@ -33,9 +37,7 @@ export function Row({ title, focusKey, children }: Props) {
   });
 
   // Scroll the page vertically when this row gains focus, so later rows
-  // become reachable instead of stuck below the fold. Walks up to find the
-  // closest scrollable ancestor (the .browse container) rather than using
-  // scrollIntoView, which can fight the horizontal scroller above.
+  // become reachable instead of stuck below the fold.
   useEffect(() => {
     if (!hasFocusedChild || !rowRef.current) return;
     const row = rowRef.current;
@@ -43,7 +45,6 @@ export function Row({ title, focusKey, children }: Props) {
     if (!container) return;
     const rRect = row.getBoundingClientRect();
     const cRect = container.getBoundingClientRect();
-    // Aim to sit the row about a quarter of the way down the viewport.
     const targetTop = cRect.top + cRect.height * 0.25;
     const delta = rRect.top - targetTop;
     if (Math.abs(delta) > 8) {
@@ -54,19 +55,17 @@ export function Row({ title, focusKey, children }: Props) {
   return (
     <FocusContext.Provider value={ctx}>
       <div ref={ref} className="row">
-        <h2 className="row-title">{title}</h2>
+        <RowTitle
+          text={title}
+          focusKey={`${focusKey}-title`}
+          onMenu={onTitleMenu}
+        />
         <div ref={scrollerRef} className="row-scroller">
           {children}
         </div>
         <style>{`
           .row {
             margin-bottom: 2.5rem;
-          }
-          .row-title {
-            font-size: 1.85rem;
-            margin: 0 0 1.1rem 4rem;
-            letter-spacing: 0.02em;
-            opacity: 0.9;
           }
           .row-scroller {
             display: flex;
@@ -83,6 +82,51 @@ export function Row({ title, focusKey, children }: Props) {
         `}</style>
       </div>
     </FocusContext.Provider>
+  );
+}
+
+function RowTitle({
+  text,
+  focusKey,
+  onMenu,
+}: {
+  text: string;
+  focusKey: string;
+  onMenu?: () => void;
+}) {
+  const { ref, focused } = useFocusable({
+    focusKey,
+    onEnterPress: () => onMenu?.(),
+  });
+  return (
+    <h2
+      ref={ref as any}
+      className={`row-title focusable ${focused ? 'focused' : ''} ${
+        onMenu ? 'row-title-menu' : ''
+      }`}
+      onClick={() => onMenu?.()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu?.();
+      }}
+    >
+      {text}
+      <style>{`
+        .row-title {
+          font-size: 1.85rem;
+          margin: 0 0 1.1rem 4rem;
+          letter-spacing: 0.02em;
+          opacity: 0.9;
+          display: inline-block;
+          padding: 0.25rem 0.75rem;
+          border-radius: 6px;
+          cursor: default;
+        }
+        .row-title-menu {
+          cursor: pointer;
+        }
+      `}</style>
+    </h2>
   );
 }
 

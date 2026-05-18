@@ -3,6 +3,7 @@ import { Setup } from './screens/Setup';
 import { Browse } from './screens/Browse';
 import { Detail } from './screens/Detail';
 import { Playback } from './screens/Playback';
+import { LivePlayback } from './screens/LivePlayback';
 import { Search } from './screens/Search';
 import { ShowBrowse } from './screens/ShowBrowse';
 import { loadApiKey } from './lib/auth/storage';
@@ -17,7 +18,8 @@ type Screen =
   | { name: 'search' }
   | { name: 'show'; show: Show }
   | { name: 'detail'; video: Video; from: Origin }
-  | { name: 'playback'; video: Video; from: Origin };
+  | { name: 'playback'; video: Video; from: Origin }
+  | { name: 'live'; channel: string; fallbackTitle: string };
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'loading' });
@@ -50,8 +52,20 @@ export default function App() {
           setLastShow(show);
           setScreen({ name: 'show', show });
         }}
+        onSelectLive={(fallbackTitle) =>
+          setScreen({ name: 'live', channel: 'giantbomb', fallbackTitle })
+        }
         onSearch={() => setScreen({ name: 'search' })}
         onSignOut={() => setScreen({ name: 'setup' })}
+      />
+    );
+  }
+  if (screen.name === 'live') {
+    return (
+      <LivePlayback
+        channel={screen.channel}
+        fallbackTitle={screen.fallbackTitle}
+        onBack={() => setScreen({ name: 'browse' })}
       />
     );
   }

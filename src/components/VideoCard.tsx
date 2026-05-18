@@ -63,7 +63,6 @@ export function VideoCard({ video, onSelect, progress, focusKey }: Props) {
           <ThumbFallback label={video.showTitle ?? 'Giant Bomb'} />
         ) : null}
         {video.premium && <div className="premium-badge">PREMIUM</div>}
-        {duration && <div className="duration-badge">{duration}</div>}
         {pct > 0 && (
           <div className="progress">
             <div className="progress-fill" style={{ width: `${pct}%` }} />
@@ -71,7 +70,12 @@ export function VideoCard({ video, onSelect, progress, focusKey }: Props) {
         )}
       </div>
       <div className="card-title">{video.title}</div>
-      {video.showTitle && <div className="card-show">{video.showTitle}</div>}
+      {(video.showTitle || duration) && (
+        <div className="card-meta">
+          <span className="card-show">{video.showTitle ?? ''}</span>
+          {duration && <span className="card-runtime">{duration}</span>}
+        </div>
+      )}
       <style>{`
         .card {
           width: 26rem;
@@ -102,16 +106,6 @@ export function VideoCard({ video, onSelect, progress, focusKey }: Props) {
           letter-spacing: 0.08em;
           border-radius: 4px;
         }
-        .duration-badge {
-          position: absolute;
-          bottom: 0.5rem;
-          right: 0.5rem;
-          background: rgba(0, 0, 0, 0.75);
-          color: white;
-          padding: 0.2rem 0.5rem;
-          font-size: 0.85rem;
-          border-radius: 4px;
-        }
         .progress {
           position: absolute;
           left: 0;
@@ -133,10 +127,24 @@ export function VideoCard({ video, onSelect, progress, focusKey }: Props) {
           -webkit-box-orient: vertical;
           overflow: hidden;
         }
-        .card-show {
+        .card-meta {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 0.75rem;
           margin-top: 0.35rem;
           font-size: 1.1rem;
           opacity: 0.6;
+        }
+        .card-show {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          min-width: 0;
+        }
+        .card-runtime {
+          flex-shrink: 0;
+          font-variant-numeric: tabular-nums;
         }
       `}</style>
     </div>

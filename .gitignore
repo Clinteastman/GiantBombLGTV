@@ -4,3 +4,4 @@ build/
 *.ipk
 .vite/
 .DS_Store
+tsconfig.tsbuildinfo
