@@ -1,0 +1,51 @@
+name: Release IPK
+
+# Cuts a webOS .ipk and attaches it to a GitHub Release whenever you push a
+# version tag, e.g.:
+#   git tag v1.0.0 && git push origin v1.0.0
+# The tag should match the "version" in package.json / public/appinfo.json.
+on:
+  push:
+    tags:
+      - 'v*'
+  # Manual "Run workflow" button (Actions tab) for testing without cutting a
+  # tag. Runs the build but skips the Release step (no tag to attach to).
+  workflow_dispatch: {}
+
+# Needed for the release step to create the release and upload the asset.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Package webOS IPK
+        run: |
+          npm i -g @webosose/ares-cli
+          ares-package dist -o build
+
+      - name: Show artifact
+        run: ls -lh build/*.ipk
+
+      - name: Attach IPK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.ipk
+          generate_release_notes: true
