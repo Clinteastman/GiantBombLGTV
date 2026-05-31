@@ -76,6 +76,7 @@ export function LazyShowRow({
               key={v.id}
               video={v}
               onSelect={onSelect}
+              onLongPress={onTitleMenu ? () => onTitleMenu(show) : undefined}
               focusKey={`${rowFocusKey}-video-${v.id}`}
             />
           ))

@@ -2,10 +2,15 @@ import { useEffect, useState } from 'react';
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { Video } from '../lib/api/types';
 import { useInView } from '../hooks/useInView';
+import { useLongPress } from '../hooks/useLongPress';
 
 interface Props {
   video: Video;
   onSelect: (video: Video) => void;
+  /** Long-press / right-click handler. When set, a held press (or right-click)
+   * opens this menu instead of selecting the video — Browse uses it to surface
+   * the row/section actions that used to live on the (now non-focusable) title. */
+  onLongPress?: (video: Video) => void;
   /** Progress as a fraction 0..1. If > 0, a red bar overlays the thumbnail. */
   progress?: number;
   /** Unique focus key. Defaults to `video-{id}`; pass when the same video can
@@ -13,10 +18,19 @@ interface Props {
   focusKey?: string;
 }
 
-export function VideoCard({ video, onSelect, progress, focusKey }: Props) {
+export function VideoCard({ video, onSelect, onLongPress, progress, focusKey }: Props) {
+  const hasLongPress = !!onLongPress;
   const { ref, focused } = useFocusable({
-    onEnterPress: () => onSelect(video),
+    // When a long-press menu is wired, useLongPress takes over Enter so a held
+    // press routes to the menu; otherwise norigin handles Enter directly.
+    onEnterPress: hasLongPress ? undefined : () => onSelect(video),
     focusKey: focusKey ?? `video-${video.id}`,
+  });
+
+  const press = useLongPress({
+    focused: focused && hasLongPress,
+    onShortPress: () => onSelect(video),
+    onLongPress: () => onLongPress?.(video),
   });
 
   const duration = formatDuration(video.durationSeconds);
@@ -43,7 +57,8 @@ export function VideoCard({ video, onSelect, progress, focusKey }: Props) {
     <div
       ref={ref}
       className={`card focusable ${focused ? 'focused' : ''}`}
-      onClick={() => onSelect(video)}
+      onClick={press.onClick}
+      onContextMenu={hasLongPress ? press.onContextMenu : undefined}
     >
       <div ref={inViewRef} className="thumb">
         {inView && currentThumb ? (

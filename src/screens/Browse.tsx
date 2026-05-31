@@ -174,25 +174,24 @@ export function Browse({
   const sectionMenuItems = useMemo<MenuItem[]>(() => {
     if (menu?.kind !== 'section') return [];
     const id = menu.id;
-    const idx = sectionOrder.indexOf(id);
+    // Gate on the visible index: moveSection now reorders relative to the
+    // nearest visible neighbor, so hidden rows must be ignored here too.
     const visibleOrder = sectionOrder.filter((s) => !hiddenSections.has(s));
     const vIdx = visibleOrder.indexOf(id);
     const items: MenuItem[] = [
       {
         label: 'Move up',
-        disabled: idx <= 0 || vIdx <= 0,
+        disabled: vIdx <= 0,
         onSelect: () => {
-          moveSection(id, -1);
+          moveSection(id, -1, hiddenSections);
           refreshPrefs();
         },
       },
       {
         label: 'Move down',
-        disabled:
-          idx < 0 || idx >= sectionOrder.length - 1 ||
-          vIdx < 0 || vIdx >= visibleOrder.length - 1,
+        disabled: vIdx < 0 || vIdx >= visibleOrder.length - 1,
         onSelect: () => {
-          moveSection(id, +1);
+          moveSection(id, +1, hiddenSections);
           refreshPrefs();
         },
       },
@@ -220,20 +219,26 @@ export function Browse({
       },
     });
     if (isPinned) {
-      const idx = pinnedIds.indexOf(show.id);
+      // Gate on the visible pinned order (pinnedShows), not the raw id list:
+      // pinnedIds can contain shows outside the capped getShows() window that
+      // never render, and acting on those is invisible to the user. The set of
+      // such unrenderable ids is passed to movePinnedShow so it hops over them.
+      const visibleIds = new Set(pinnedShows.map((s) => s.id));
+      const hiddenPinned = new Set(pinnedIds.filter((id) => !visibleIds.has(id)));
+      const vIdx = pinnedShows.findIndex((s) => s.id === show.id);
       items.push({
         label: 'Move pinned up',
-        disabled: idx <= 0,
+        disabled: vIdx <= 0,
         onSelect: () => {
-          movePinnedShow(show.id, -1);
+          movePinnedShow(show.id, -1, hiddenPinned);
           refreshPrefs();
         },
       });
       items.push({
         label: 'Move pinned down',
-        disabled: idx < 0 || idx >= pinnedIds.length - 1,
+        disabled: vIdx < 0 || vIdx >= pinnedShows.length - 1,
         onSelect: () => {
-          movePinnedShow(show.id, +1);
+          movePinnedShow(show.id, +1, hiddenPinned);
           refreshPrefs();
         },
       });
@@ -249,7 +254,7 @@ export function Browse({
       onSelect: () => setMenu({ kind: 'section', id: sectionId }),
     });
     return items;
-  }, [menu, pinnedSet, pinnedIds, onSelectShow]);
+  }, [menu, pinnedSet, pinnedIds, pinnedShows, onSelectShow]);
 
   const unhideMenuItems = useMemo<MenuItem[]>(() => {
     return Array.from(hiddenSections).map((id) => ({
@@ -276,6 +281,7 @@ export function Browse({
                 key={`${item.title}-${i}`}
                 item={item}
                 focusKey={`upcoming-${i}`}
+                onLongPress={menuFor}
                 onSelect={(picked) => {
                   if (picked.isLive) {
                     onSelectLive(picked.title);
@@ -296,6 +302,7 @@ export function Browse({
                 key={video.id}
                 video={video}
                 onSelect={onSelect}
+                onLongPress={menuFor}
                 progress={p}
                 focusKey={`continue-${video.id}`}
               />
@@ -311,6 +318,7 @@ export function Browse({
                 key={v.id}
                 video={v}
                 onSelect={onSelect}
+                onLongPress={menuFor}
                 focusKey={`watchlist-${v.id}`}
               />
             ))}
@@ -325,6 +333,7 @@ export function Browse({
                 key={v.id}
                 video={v}
                 onSelect={onSelect}
+                onLongPress={menuFor}
                 focusKey={`recent-${v.id}`}
               />
             ))}
@@ -384,6 +393,7 @@ export function Browse({
                 key={v.id}
                 video={v}
                 onSelect={onSelect}
+                onLongPress={menuFor}
                 focusKey={`premium-${v.id}`}
               />
             ))}

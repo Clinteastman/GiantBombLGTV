@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -21,6 +21,7 @@ interface Props {
 export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,15 +82,22 @@ export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
     setFocus('live-back-btn');
   }, []);
 
-  useEffect(() => {
-    if (!showOverlay) return;
-    const t = window.setTimeout(() => setShowOverlay(false), 4000);
-    return () => window.clearTimeout(t);
-  }, [showOverlay]);
-
-  function flashOverlay() {
+  // Show the overlay and (re)start the auto-hide countdown. Resetting the timer
+  // here is what keeps the overlay up while the user is actively interacting —
+  // gating on the showOverlay state alone wouldn't reset it once already shown.
+  const flashOverlay = useCallback(() => {
     setShowOverlay(true);
-  }
+    if (hideTimerRef.current != null) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setShowOverlay(false), 4000);
+  }, []);
+
+  useEffect(() => {
+    // Start the initial countdown on mount and clean up on unmount.
+    flashOverlay();
+    return () => {
+      if (hideTimerRef.current != null) window.clearTimeout(hideTimerRef.current);
+    };
+  }, [flashOverlay]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

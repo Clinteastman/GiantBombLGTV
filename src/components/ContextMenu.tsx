@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import {
   FocusContext,
+  getCurrentFocusKey,
   setFocus,
   useFocusable,
 } from '@noriginmedia/norigin-spatial-navigation';
@@ -26,7 +27,14 @@ export function ContextMenu({ title, items, onClose }: Props) {
   const { ref, focusKey } = useFocusable({ focusKey: 'context-menu' });
 
   useEffect(() => {
+    // Remember what was focused before we steal focus, and hand it back when
+    // the menu unmounts. Without this, focus is left on the removed menu item
+    // and the D-pad goes dead until the user blindly re-acquires an element.
+    const previousFocusKey = getCurrentFocusKey();
     setFocus('context-menu-item-0');
+    return () => {
+      if (previousFocusKey) setFocus(previousFocusKey);
+    };
   }, []);
 
   useEffect(() => {

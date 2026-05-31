@@ -5,9 +5,10 @@ interface Props {
   title: string;
   focusKey: string;
   children: ReactNode;
-  /** When set, the title becomes a focusable element that opens this menu on
-   * Enter, click, or right-click. Used by Browse to surface section actions
-   * (move up, move down, hide) or per-show actions (pin, unpin, move). */
+  /** When set, the title opens this menu on click / right-click (for pointer
+   * users). On the remote the same menu is reached by long-pressing a card in
+   * the row — the title is deliberately NOT a focusable element, so vertical
+   * D-pad navigation goes card-to-card instead of stopping on every title. */
   onTitleMenu?: () => void;
 }
 
@@ -55,11 +56,7 @@ export function Row({ title, focusKey, onTitleMenu, children }: Props) {
   return (
     <FocusContext.Provider value={ctx}>
       <div ref={ref} className="row">
-        <RowTitle
-          text={title}
-          focusKey={`${focusKey}-title`}
-          onMenu={onTitleMenu}
-        />
+        <RowTitle text={title} onMenu={onTitleMenu} />
         <div ref={scrollerRef} className="row-scroller">
           {children}
         </div>
@@ -85,30 +82,19 @@ export function Row({ title, focusKey, onTitleMenu, children }: Props) {
   );
 }
 
-function RowTitle({
-  text,
-  focusKey,
-  onMenu,
-}: {
-  text: string;
-  focusKey: string;
-  onMenu?: () => void;
-}) {
-  const { ref, focused } = useFocusable({
-    focusKey,
-    onEnterPress: () => onMenu?.(),
-  });
+function RowTitle({ text, onMenu }: { text: string; onMenu?: () => void }) {
   return (
     <h2
-      ref={ref as any}
-      className={`row-title focusable ${focused ? 'focused' : ''} ${
-        onMenu ? 'row-title-menu' : ''
-      }`}
+      className={`row-title ${onMenu ? 'row-title-menu' : ''}`}
       onClick={() => onMenu?.()}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onMenu?.();
-      }}
+      onContextMenu={
+        onMenu
+          ? (e) => {
+              e.preventDefault();
+              onMenu();
+            }
+          : undefined
+      }
     >
       {text}
       <style>{`
