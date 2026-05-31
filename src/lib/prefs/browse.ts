@@ -69,12 +69,39 @@ export function togglePinnedShow(id: number): boolean {
   return true;
 }
 
-/** Shift a pinned show by `delta` (-1 = up, +1 = down). No-op if out of range. */
-export function movePinnedShow(id: number, delta: number): void {
+/**
+ * Shift a pinned show by `delta` (-1 = up, +1 = down). No-op if out of range.
+ * When `hidden` is supplied, the show is moved relative to its nearest
+ * *visible* pinned neighbor (skipping ids that aren't currently renderable —
+ * e.g. shows outside the capped getShows() window), so the reorder matches what
+ * the user sees rather than swapping with an invisible row.
+ */
+export function movePinnedShow(
+  id: number,
+  delta: number,
+  hidden?: ReadonlySet<number>
+): void {
   const current = getPinnedShowIds();
   const idx = current.indexOf(id);
   if (idx < 0) return;
-  const newIdx = Math.max(0, Math.min(current.length - 1, idx + delta));
+
+  let newIdx: number;
+  if (hidden && hidden.size > 0) {
+    const step = delta < 0 ? -1 : 1;
+    let target = idx + step;
+    while (
+      target >= 0 &&
+      target < current.length &&
+      hidden.has(current[target])
+    ) {
+      target += step;
+    }
+    if (target < 0 || target >= current.length) return; // no visible neighbor
+    newIdx = target;
+  } else {
+    newIdx = Math.max(0, Math.min(current.length - 1, idx + delta));
+  }
+
   if (newIdx === idx) return;
   current.splice(idx, 1);
   current.splice(newIdx, 0, id);
@@ -98,11 +125,38 @@ export function setSectionOrder(order: string[]): void {
   writeJson(SECTION_ORDER_KEY, order.filter((s) => ALL_SECTIONS.has(s)));
 }
 
-export function moveSection(id: string, delta: number): void {
+/**
+ * Move a section by one slot. When `hidden` is supplied, the section is moved
+ * relative to its nearest *visible* neighbor (skipping hidden sections), so the
+ * reorder matches what the user actually sees — otherwise moving past a hidden
+ * row is a no-op on screen even though the stored order changed.
+ */
+export function moveSection(
+  id: string,
+  delta: number,
+  hidden?: ReadonlySet<string>
+): void {
   const current = getSectionOrder();
   const idx = current.indexOf(id);
   if (idx < 0) return;
-  const newIdx = Math.max(0, Math.min(current.length - 1, idx + delta));
+
+  let newIdx: number;
+  if (hidden && hidden.size > 0) {
+    const step = delta < 0 ? -1 : 1;
+    let target = idx + step;
+    while (
+      target >= 0 &&
+      target < current.length &&
+      hidden.has(current[target])
+    ) {
+      target += step;
+    }
+    if (target < 0 || target >= current.length) return; // no visible neighbor
+    newIdx = target;
+  } else {
+    newIdx = Math.max(0, Math.min(current.length - 1, idx + delta));
+  }
+
   if (newIdx === idx) return;
   current.splice(idx, 1);
   current.splice(newIdx, 0, id);

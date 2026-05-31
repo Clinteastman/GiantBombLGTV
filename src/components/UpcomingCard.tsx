@@ -2,17 +2,29 @@ import { useEffect, useState } from 'react';
 import { useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { UpcomingStream } from '../lib/api/types';
 import { useInView } from '../hooks/useInView';
+import { useLongPress } from '../hooks/useLongPress';
 
 interface Props {
   item: UpcomingStream;
   focusKey: string;
   onSelect?: (item: UpcomingStream) => void;
+  /** Long-press / right-click handler. When set, a held press opens this menu
+   * (Browse uses it to surface the Live & Upcoming row actions, since the row
+   * title is no longer a focusable spatial-nav target). */
+  onLongPress?: (item: UpcomingStream) => void;
 }
 
-export function UpcomingCard({ item, focusKey, onSelect }: Props) {
+export function UpcomingCard({ item, focusKey, onSelect, onLongPress }: Props) {
+  const hasLongPress = !!onLongPress;
   const { ref, focused } = useFocusable({
     focusKey,
-    onEnterPress: () => onSelect?.(item),
+    onEnterPress: hasLongPress ? undefined : () => onSelect?.(item),
+  });
+
+  const press = useLongPress({
+    focused: focused && hasLongPress,
+    onShortPress: () => onSelect?.(item),
+    onLongPress: () => onLongPress?.(item),
   });
 
   const when = formatWhen(item.date, item.isLive);
@@ -24,7 +36,8 @@ export function UpcomingCard({ item, focusKey, onSelect }: Props) {
     <div
       ref={ref}
       className={`up-card focusable ${focused ? 'focused' : ''}`}
-      onClick={() => onSelect?.(item)}
+      onClick={press.onClick}
+      onContextMenu={hasLongPress ? press.onContextMenu : undefined}
     >
       <div ref={inViewRef} className="up-thumb">
         {inView && item.image && !imgBroken ? (

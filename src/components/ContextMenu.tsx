@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import {
   FocusContext,
+  getCurrentFocusKey,
   setFocus,
   useFocusable,
 } from '@noriginmedia/norigin-spatial-navigation';
+import { useBackKey } from '../hooks/useBackKey';
 
 export interface MenuItem {
   label: string;
@@ -26,20 +28,18 @@ export function ContextMenu({ title, items, onClose }: Props) {
   const { ref, focusKey } = useFocusable({ focusKey: 'context-menu' });
 
   useEffect(() => {
+    // Remember what was focused before we steal focus, and hand it back when
+    // the menu unmounts. Without this, focus is left on the removed menu item
+    // and the D-pad goes dead until the user blindly re-acquires an element.
+    const previousFocusKey = getCurrentFocusKey();
     setFocus('context-menu-item-0');
+    return () => {
+      if (previousFocusKey) setFocus(previousFocusKey);
+    };
   }, []);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' || e.key === 'XF86Back' || (e as any).keyCode === 461) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        onClose();
-      }
-    }
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  // Capture-phase so the menu swallows back before the screen beneath it reacts.
+  useBackKey(onClose, { capture: true });
 
   return (
     <FocusContext.Provider value={focusKey}>

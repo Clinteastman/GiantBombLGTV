@@ -7,6 +7,7 @@ import {
 } from '@noriginmedia/norigin-spatial-navigation';
 import { createClient } from '../lib/api/giantbomb';
 import { loadApiKey } from '../lib/auth/storage';
+import { useBackKey } from '../hooks/useBackKey';
 import { Show, Video } from '../lib/api/types';
 import { VideoCard } from '../components/VideoCard';
 
@@ -28,16 +29,7 @@ export function ShowBrowse({ show, onSelect, onBack }: Props) {
     setFocus('show-back');
   }, []);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' || e.key === 'XF86Back' || (e as any).keyCode === 461) {
-        e.preventDefault();
-        onBack();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onBack]);
+  useBackKey(onBack);
 
   const query = useInfiniteQuery({
     queryKey: ['show-browse', show.id],

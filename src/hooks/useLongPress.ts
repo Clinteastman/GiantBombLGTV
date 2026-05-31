@@ -81,7 +81,15 @@ export function useLongPress({
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
-      clearTimer();
+      // If a press was armed but hasn't resolved yet (no keyup, timer not
+      // elapsed), complete it as a short press rather than dropping it. This
+      // covers the case where focus moves between keydown and keyup — e.g. an
+      // async re-render shifts spatial focus mid-tap — which re-runs this
+      // effect and tears the listeners down before keyup is ever observed.
+      if (timerRef.current != null) {
+        clearTimer();
+        shortCb.current();
+      }
     };
   }, [focused, thresholdMs]);
 

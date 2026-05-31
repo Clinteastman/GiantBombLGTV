@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { useQuery } from '@tanstack/react-query';
-import {
-  FocusContext,
-  setFocus,
-  useFocusable,
-} from '@noriginmedia/norigin-spatial-navigation';
+import { FocusContext, setFocus, useFocusable } from '@noriginmedia/norigin-spatial-navigation';
 import { extractTwitchHls } from '../lib/api/twitch';
+import { attachHls } from '../lib/playback/hls';
+import { isBackKey, isPlayPauseKey } from '../lib/tv/keys';
+import { OverlayButton } from '../components/OverlayButton';
 
 interface Props {
   /** Twitch channel name. We always use "giantbomb" for now but pass it
@@ -21,6 +20,7 @@ interface Props {
 export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,21 +46,12 @@ export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
     }
 
     setError(null);
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        liveSyncDurationCount: 3,
-        maxLiveSyncPlaybackRate: 1.5,
-      });
-      hls.loadSource(info.hlsUrl);
-      hls.attachMedia(el);
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) setError(`Playback error: ${data.details}`);
-      });
-      hlsRef.current = hls;
-    } else {
-      // Safari and some webOS builds play HLS natively.
-      el.src = info.hlsUrl;
-    }
+    hlsRef.current = attachHls({
+      el,
+      url: info.hlsUrl,
+      config: { liveSyncDurationCount: 3, maxLiveSyncPlaybackRate: 1.5 },
+      onFatalError: (details) => setError(`Playback error: ${details}`),
+    });
     const onMeta = () => {
       el.play().catch(() => undefined);
     };
@@ -81,32 +72,38 @@ export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
     setFocus('live-back-btn');
   }, []);
 
-  useEffect(() => {
-    if (!showOverlay) return;
-    const t = window.setTimeout(() => setShowOverlay(false), 4000);
-    return () => window.clearTimeout(t);
-  }, [showOverlay]);
-
-  function flashOverlay() {
+  // Show the overlay and (re)start the auto-hide countdown. Resetting the timer
+  // here is what keeps the overlay up while the user is actively interacting —
+  // gating on the showOverlay state alone wouldn't reset it once already shown.
+  const flashOverlay = useCallback(() => {
     setShowOverlay(true);
-  }
+    if (hideTimerRef.current != null) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setShowOverlay(false), 4000);
+  }, []);
+
+  useEffect(() => {
+    // Start the initial countdown on mount and clean up on unmount.
+    flashOverlay();
+    return () => {
+      if (hideTimerRef.current != null) window.clearTimeout(hideTimerRef.current);
+    };
+  }, [flashOverlay]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const k = e.key;
-      if (k === 'Escape' || k === 'XF86Back' || (e as any).keyCode === 461) {
+      if (isBackKey(e)) {
         e.preventDefault();
         onBack();
         return;
       }
       const el = videoRef.current;
       if (!el) return;
-      if (k === ' ' || k === 'MediaPlayPause' || (e as any).keyCode === 463) {
+      if (isPlayPauseKey(e)) {
         e.preventDefault();
         if (el.paused) el.play().catch(() => undefined);
         else el.pause();
         flashOverlay();
-      } else if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'Enter') {
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
         flashOverlay();
       }
     }
@@ -146,7 +143,7 @@ export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
               <div className="live-title">{title}</div>
             </div>
             <div className="live-overlay-bottom">
-              <BackButton onPress={onBack} />
+              <OverlayButton focusKey="live-back-btn" label="Back" onPress={onBack} />
             </div>
           </div>
         )}
@@ -232,32 +229,5 @@ export function LivePlayback({ channel, fallbackTitle, onBack }: Props) {
         `}</style>
       </div>
     </FocusContext.Provider>
-  );
-}
-
-function BackButton({ onPress }: { onPress: () => void }) {
-  const { ref, focused } = useFocusable({
-    focusKey: 'live-back-btn',
-    onEnterPress: onPress,
-  });
-  return (
-    <button
-      ref={ref as any}
-      className={`live-back focusable ${focused ? 'focused' : ''}`}
-      onClick={onPress}
-    >
-      Back
-      <style>{`
-        .live-back {
-          background: rgba(0, 0, 0, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          color: white;
-          padding: 0.7rem 1.4rem;
-          font-size: 1.05rem;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-      `}</style>
-    </button>
   );
 }

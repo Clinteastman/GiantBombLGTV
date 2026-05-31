@@ -7,6 +7,7 @@ import {
 } from '@noriginmedia/norigin-spatial-navigation';
 import { createClient } from '../lib/api/giantbomb';
 import { loadApiKey } from '../lib/auth/storage';
+import { useBackKey } from '../hooks/useBackKey';
 import { Video } from '../lib/api/types';
 import { VideoCard } from '../components/VideoCard';
 
@@ -32,16 +33,7 @@ export function Search({ onSelect, onBack }: Props) {
     return () => window.clearTimeout(t);
   }, [text]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' || e.key === 'XF86Back' || (e as any).keyCode === 461) {
-        e.preventDefault();
-        onBack();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onBack]);
+  useBackKey(onBack);
 
   useEffect(() => {
     setFocus('search-input');
