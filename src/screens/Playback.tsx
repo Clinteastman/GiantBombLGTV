@@ -14,6 +14,9 @@ import {
   Quality,
 } from '../lib/auth/storage';
 import { resolveSource } from '../lib/playback/quality';
+import { attachHls } from '../lib/playback/hls';
+import { isBackKey, isPlayPauseKey } from '../lib/tv/keys';
+import { OverlayButton } from '../components/OverlayButton';
 import { PlaybackInfo, Video } from '../lib/api/types';
 
 interface Props {
@@ -73,17 +76,13 @@ export function Playback({ video, onBack }: Props) {
 
     const restoreAt = el.currentTime > 0 ? el.currentTime : resumeAt;
 
-    if (resolved.kind === 'hls' && Hls.isSupported()) {
-      const hls = new Hls({ maxBufferLength: 30 });
-      hls.loadSource(resolved.url);
-      hls.attachMedia(el);
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) setError(`Playback error: ${data.details}`);
+    if (resolved.kind === 'hls') {
+      hlsRef.current = attachHls({
+        el,
+        url: resolved.url,
+        config: { maxBufferLength: 30 },
+        onFatalError: (details) => setError(`Playback error: ${details}`),
       });
-      hlsRef.current = hls;
-    } else if (resolved.kind === 'hls') {
-      // Native HLS (Safari and some webOS builds). Set src directly.
-      el.src = resolved.url;
     } else {
       el.src = resolved.url;
     }
@@ -145,7 +144,7 @@ export function Playback({ video, onBack }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const key = e.key;
-      if (key === 'Escape' || key === 'XF86Back' || (e as any).keyCode === 461) {
+      if (isBackKey(e)) {
         e.preventDefault();
         if (pickerOpen) {
           setPickerOpen(false);
@@ -156,7 +155,7 @@ export function Playback({ video, onBack }: Props) {
       }
       const el = videoRef.current;
       if (!el) return;
-      if (key === ' ' || key === 'MediaPlayPause' || (e as any).keyCode === 463) {
+      if (isPlayPauseKey(e)) {
         e.preventDefault();
         if (el.paused) el.play().catch(() => undefined);
         else el.pause();
@@ -207,11 +206,16 @@ export function Playback({ video, onBack }: Props) {
               {video.showTitle && <div className="overlay-show">{video.showTitle}</div>}
             </div>
             <div className="overlay-bottom">
-              <QualityButton
-                quality={quality}
-                onOpen={() => setPickerOpen((v) => !v)}
+              <OverlayButton
+                focusKey="playback-quality-btn"
+                label={`Quality: ${qualityLabel(quality)}`}
+                onPress={() => setPickerOpen((v) => !v)}
               />
-              <BackButton onPress={onBack} />
+              <OverlayButton
+                focusKey="playback-back-btn"
+                label="Back"
+                onPress={onBack}
+              />
             </div>
           </div>
         )}
@@ -289,66 +293,6 @@ export function Playback({ video, onBack }: Props) {
         `}</style>
       </div>
     </FocusContext.Provider>
-  );
-}
-
-function QualityButton({
-  quality,
-  onOpen,
-}: {
-  quality: Quality;
-  onOpen: () => void;
-}) {
-  const { ref, focused } = useFocusable({
-    focusKey: 'playback-quality-btn',
-    onEnterPress: onOpen,
-  });
-  return (
-    <button
-      ref={ref as any}
-      className={`ovbtn focusable ${focused ? 'focused' : ''}`}
-      onClick={onOpen}
-    >
-      Quality: {qualityLabel(quality)}
-      <style>{`
-        .ovbtn {
-          background: rgba(0, 0, 0, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          color: white;
-          padding: 0.7rem 1.4rem;
-          font-size: 1.05rem;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-      `}</style>
-    </button>
-  );
-}
-
-function BackButton({ onPress }: { onPress: () => void }) {
-  const { ref, focused } = useFocusable({
-    focusKey: 'playback-back-btn',
-    onEnterPress: onPress,
-  });
-  return (
-    <button
-      ref={ref as any}
-      className={`ovbtn focusable ${focused ? 'focused' : ''}`}
-      onClick={onPress}
-    >
-      Back
-      <style>{`
-        .ovbtn {
-          background: rgba(0, 0, 0, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.3);
-          color: white;
-          padding: 0.7rem 1.4rem;
-          font-size: 1.05rem;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-      `}</style>
-    </button>
   );
 }
 

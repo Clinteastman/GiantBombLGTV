@@ -8,7 +8,6 @@ import {
 import { createClient } from '../lib/api/giantbomb';
 import { loadApiKey, clearApiKey } from '../lib/auth/storage';
 import {
-  DEFAULT_SECTION_ORDER,
   SECTION_ACTIVE_SHOWS,
   SECTION_CONTINUE,
   SECTION_LEGACY,
@@ -430,9 +429,6 @@ export function Browse({
     }
   }
 
-  // Effective section order falls back to default if storage is bare.
-  const effectiveOrder = sectionOrder.length > 0 ? sectionOrder : DEFAULT_SECTION_ORDER;
-
   return (
     <FocusContext.Provider value={focusKey}>
       <div ref={ref} className="browse">
@@ -452,7 +448,7 @@ export function Browse({
         </header>
 
         <div className="rows">
-          {effectiveOrder.map((id) => (
+          {sectionOrder.map((id) => (
             <Fragment key={id}>{renderSection(id)}</Fragment>
           ))}
         </div>

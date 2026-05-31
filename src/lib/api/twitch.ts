@@ -24,6 +24,19 @@ export interface TwitchStream {
   title: string;
 }
 
+/** POST a GQL body to the public Twitch endpoint with the shared client-id. */
+function gqlFetch(body: unknown): Promise<Response> {
+  return fetch(GQL_URL, {
+    method: 'POST',
+    headers: {
+      'Client-ID': CLIENT_ID,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 /**
  * Returns the live state of `channel`. Returns `null` if the check itself
  * failed (network/GQL error). Callers should treat `null` as "unknown" and
@@ -34,16 +47,8 @@ export async function getTwitchLiveStatus(channel: string): Promise<LiveStatus |
     throw new Error(`Invalid Twitch login: ${channel}`);
   }
   try {
-    const res = await fetch(GQL_URL, {
-      method: 'POST',
-      headers: {
-        'Client-ID': CLIENT_ID,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        query: `query { user(login: "${channel}") { stream { id title type } } }`,
-      }),
+    const res = await gqlFetch({
+      query: `query { user(login: "${channel}") { stream { id title type } } }`,
     });
     if (res.status !== 200) return null;
     const json = await res.json();
@@ -63,14 +68,10 @@ export async function getTwitchLiveStatus(channel: string): Promise<LiveStatus |
 export async function extractTwitchHls(channel: string): Promise<TwitchStream | null> {
   if (!LOGIN_REGEX.test(channel)) return null;
   try {
-    const tokenRes = await fetch(GQL_URL, {
-      method: 'POST',
-      headers: {
-        'Client-ID': CLIENT_ID,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
+    // The token mint and the title lookup are independent, so fire them
+    // together — total wait is the slower of the two, not their sum.
+    const [tokenRes, streamTitle] = await Promise.all([
+      gqlFetch({
         operationName: 'PlaybackAccessToken',
         extensions: {
           persistedQuery: {
@@ -87,13 +88,14 @@ export async function extractTwitchHls(channel: string): Promise<TwitchStream | 
           platform: 'web',
         },
       }),
-    });
+      getStreamTitle(channel),
+    ]);
     if (tokenRes.status !== 200) return null;
     const tokenJson = await tokenRes.json();
     const token = tokenJson?.data?.streamPlaybackAccessToken;
     if (!token?.value || !token?.signature) return null;
 
-    const title = (await getStreamTitle(channel)) ?? 'Giant Bomb Live';
+    const title = streamTitle ?? 'Giant Bomb Live';
 
     const params = new URLSearchParams({
       sig: token.signature,
@@ -117,16 +119,8 @@ export async function extractTwitchHls(channel: string): Promise<TwitchStream | 
 
 async function getStreamTitle(channel: string): Promise<string | null> {
   try {
-    const res = await fetch(GQL_URL, {
-      method: 'POST',
-      headers: {
-        'Client-ID': CLIENT_ID,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        query: `query { user(login: "${channel}") { stream { title } } }`,
-      }),
+    const res = await gqlFetch({
+      query: `query { user(login: "${channel}") { stream { title } } }`,
     });
     if (res.status !== 200) return null;
     const json = await res.json();

@@ -59,10 +59,7 @@ export function ShowCard({ show, onSelect, onLongPress, focusKey, pinned }: Prop
         ) : null}
         {pinned && <div className="pin-badge">★</div>}
       </div>
-      <div className="show-title">
-        {pinned ? '★ ' : ''}
-        {show.title}
-      </div>
+      <div className="show-title">{show.title}</div>
       <style>{`
         .show-card {
           width: 24rem;

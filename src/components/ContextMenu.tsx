@@ -5,6 +5,7 @@ import {
   setFocus,
   useFocusable,
 } from '@noriginmedia/norigin-spatial-navigation';
+import { useBackKey } from '../hooks/useBackKey';
 
 export interface MenuItem {
   label: string;
@@ -37,17 +38,8 @@ export function ContextMenu({ title, items, onClose }: Props) {
     };
   }, []);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' || e.key === 'XF86Back' || (e as any).keyCode === 461) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        onClose();
-      }
-    }
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  // Capture-phase so the menu swallows back before the screen beneath it reacts.
+  useBackKey(onClose, { capture: true });
 
   return (
     <FocusContext.Provider value={focusKey}>
